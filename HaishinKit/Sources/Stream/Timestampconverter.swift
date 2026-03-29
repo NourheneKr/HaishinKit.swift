@@ -31,12 +31,6 @@ public final class TimestampConverter: @unchecked Sendable {
             ? Int64((time.seconds * 1000.0).rounded())
             : 0
         self.globalOffsetMs = unixMs - hostMs
-
-        // Vérification
-        print("🔧 [TimestampConverter] init - unixMs: \(unixMs)")
-        print("🔧 [TimestampConverter] init - hostMs: \(hostMs)")
-        print("🔧 [TimestampConverter] init - globalOffsetMs: \(globalOffsetMs)")
-        print("🔧 [TimestampConverter] init - absoluteTimeMs: \(unixMs - hostMs + hostMs)")
     }
     
     // MARK: - Offset management

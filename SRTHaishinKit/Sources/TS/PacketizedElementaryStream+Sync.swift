@@ -67,15 +67,6 @@ extension PacketizedElementaryStream {
             converter.toPTS90k(absoluteMs: $0, streamStartMs: context.startAbsoluteMs)
         }
 
-        // TO DELETE: logs de debug pour vérifier les calculs de timestamps
-        if pts90k < 5 * 90 {
-            print("✅ [PES Video] absolutePresentationMs: \(absolutePresentationMs)")
-            print("✅ [PES Video] startAbsoluteMs: \(context.startAbsoluteMs)")
-            print("✅ [PES Video] deltaMs: \(absolutePresentationMs - context.startAbsoluteMs)")
-            print("✅ [PES Video] pts90k: \(pts90k)")
-            print("✅ [PES Video] pts en secondes: \(Double(pts90k) / 90_000.0)s")
-        }
-
         // 4) Injection dans l'en-tête PES
         optionalPESHeader = PESOptionalHeader()
         optionalPESHeader?.dataAlignmentIndicator = true
