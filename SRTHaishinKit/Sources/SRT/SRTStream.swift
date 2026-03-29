@@ -74,6 +74,7 @@ public actor SRTStream {
         stopMixerInputConsumers()
         startMixerInputConsumers()
         outgoing.startRunning()
+        writer.clockContext = StreamClockContext()
         if outgoing.videoInputFormat != nil {
             writer.expectedMedias.insert(.video)
         }
@@ -139,6 +140,7 @@ public actor SRTStream {
         stopMixerInputConsumers()
         startMixerInputConsumers()
         writer.clear()
+        writer.clockContext = nil
         reader.clear()
         outgoing.stopRunning()
         Task { await incoming.stopRunning() }
