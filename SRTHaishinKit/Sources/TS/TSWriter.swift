@@ -144,6 +144,7 @@ final class TSWriter {
                    synchronizedVideoSampleBuffer: sampleBuffer,
                    context: context
                ) {
+                print("✅ [TSWriter] PES vidéo synchronisé utilisé") 
                 pes.streamID = 224
                 writePacketizedElementaryStream(
                     Self.defaultVideoPID,
@@ -152,6 +153,7 @@ final class TSWriter {
                     randomAccessIndicator: !sampleBuffer.isNotSync
                 )
             } else if var pes = PacketizedElementaryStream(sampleBuffer, timeStamp: videoTimeStamp) {
+                print("⚠️ [TSWriter] fallback PES vidéo original") 
                 pes.streamID = 224
                 writePacketizedElementaryStream(
                     Self.defaultVideoPID,
