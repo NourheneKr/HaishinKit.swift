@@ -67,8 +67,8 @@ extension PacketizedElementaryStream {
             converter.toPTS90k(absoluteMs: $0, streamStartMs: context.startAbsoluteMs)
         }
 
-        if Self.logCount < 5 {
-            Self.logCount += 1
+        // TO DELETE: logs de debug pour vérifier les calculs de timestamps
+        if pts90k < 5 * 90 {
             print("✅ [PES Video] absolutePresentationMs: \(absolutePresentationMs)")
             print("✅ [PES Video] startAbsoluteMs: \(context.startAbsoluteMs)")
             print("✅ [PES Video] deltaMs: \(absolutePresentationMs - context.startAbsoluteMs)")

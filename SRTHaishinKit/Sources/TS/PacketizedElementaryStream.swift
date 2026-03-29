@@ -149,9 +149,6 @@ extension PESOptionalHeader: CustomDebugStringConvertible {
 
 // MARK: -
 struct PacketizedElementaryStream: PESPacketHeader {
-
-    private static var logCount = 0 // TO DELETE
-
     static let untilPacketLengthSize: Int = 6
     static let startCode = Data([0x00, 0x00, 0x01])
 
