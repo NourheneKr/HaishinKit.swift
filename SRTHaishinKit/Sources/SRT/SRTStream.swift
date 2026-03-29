@@ -27,6 +27,12 @@ public actor SRTStream {
     nonisolated(unsafe) private var mixerAudioContinuation: AsyncStream<(AVAudioPCMBuffer, AVAudioTime)>.Continuation?
     nonisolated(unsafe) private var mixerVideoContinuation: AsyncStream<CMSampleBuffer>.Continuation?
 
+    public var performanceData: SRTPerformanceData? {
+        get async {
+            return await connection?.performanceData
+        }
+    }
+
     /// The error domain codes.
     public enum Error: Swift.Error {
         // An unsupported codec.

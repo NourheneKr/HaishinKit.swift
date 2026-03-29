@@ -2,7 +2,7 @@
 import Foundation
 import HaishinKit
 
-public actor SRTSession: StreamSession {
+actor SRTSession: StreamSession {
     var connected: Bool {
         get async {
             await connection.connected
