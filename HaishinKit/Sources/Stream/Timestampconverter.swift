@@ -25,16 +25,20 @@ public final class TimestampConverter: @unchecked Sendable {
     public init(clock: CMClock = CMClockGetHostTimeClock()) {
         self.hostClock = clock
 
-        // Offset initial = Unix ms - host clock ms
-        // Permet d'avoir un temps absolu sans appel NTP préalable
         let unixMs = Int64(Date().timeIntervalSince1970 * 1000)
         let time = CMClockGetTime(clock)
         let hostMs = (time.isNumeric && time.timescale != 0)
             ? Int64((time.seconds * 1000.0).rounded())
             : 0
         self.globalOffsetMs = unixMs - hostMs
-    }
 
+        // Vérification
+        print("🔧 [TimestampConverter] init - unixMs: \(unixMs)")
+        print("🔧 [TimestampConverter] init - hostMs: \(hostMs)")
+        print("🔧 [TimestampConverter] init - globalOffsetMs: \(globalOffsetMs)")
+        print("🔧 [TimestampConverter] init - absoluteTimeMs: \(unixMs - hostMs + hostMs)")
+    }
+    
     // MARK: - Offset management
 
     /// Met à jour l'offset global depuis NTP.
