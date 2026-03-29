@@ -1,6 +1,7 @@
 import AVFoundation
 import CoreMedia
 import Foundation
+import HaishinKit
 
 /// An object that represents writes MPEG-2 transport stream data.
 final class TSWriter {
