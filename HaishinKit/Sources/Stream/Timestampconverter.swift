@@ -10,7 +10,7 @@ import CoreMedia
 /// - convertir ce temps en PTS MPEG-TS (90 kHz) ou RTMP (ms)
 ///
 /// Singleton partagé entre SRT et RTMP.
-public final class TimestampConverter {
+public final class TimestampConverter: @unchecked Sendable {
     public static let shared = TimestampConverter()
 
     /// Horloge monotone locale CoreMedia.
