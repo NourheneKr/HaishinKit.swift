@@ -17,6 +17,9 @@ public protocol StreamConvertible: Actor, MediaMixerOutput {
     /// Sets the bitrate strategy object.
     func setBitRateStrategy(_ bitRateStrategy: (some StreamBitRateStrategy)?)
 
+    /// Clear the bitrate strategy object.
+    func clearBitRateStrategy()
+
     /// Sets the audio compression properties.
     func setAudioSettings(_ audioSettings: AudioCodecSettings) throws
 
