@@ -79,6 +79,10 @@ extension _Stream {
         self.bitRateStrategy = bitRateStrategy
     }
 
+    public func clearBitRateStrategy() {
+        self.bitRateStrategy = nil
+    }
+
     public func setVideoInputBufferCounts(_ videoInputBufferCounts: Int) {
         outgoing.videoInputBufferCounts = videoInputBufferCounts
     }
