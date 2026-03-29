@@ -45,7 +45,7 @@ public final class TimestampConverter: @unchecked Sendable {
     /// Appelé une fois au démarrage du premier stream.
     public func updateOffset(_ offsetMs: Int64) {
         lock.lock()
-        globalOffsetMs = offsetMs
+        globalOffsetMs += offsetMs
         lock.unlock()
     }
 
