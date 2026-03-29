@@ -9,20 +9,26 @@ final class TSWriter {
     static let defaultVideoPID: UInt16 = 256
     static let defaultAudioPID: UInt16 = 257
     static let defaultSegmentDuration: Double = 2
+
     /// An asynchronous sequence for writing data.
     public var output: AsyncStream<Data> {
         AsyncStream { continuation in
             self.continuation = continuation
         }
     }
-    /// Specifies the exptected medias = [.video, .audio].
+
+    /// Specifies the expected medias = [.video, .audio].
     var expectedMedias: Set<AVMediaType> = []
+
+    /// Contexte de synchronisation temporelle.
+    /// Créé dans SRTStream.publish() et passé ici.
+    /// Nil = comportement original (pas de synchro inter-devices).
+    var clockContext: StreamClockContext?
+
     /// Specifies the audio format.
     var audioFormat: AVAudioFormat? {
         didSet {
-            guard let audioFormat, audioFormat != oldValue else {
-                return
-            }
+            guard let audioFormat, audioFormat != oldValue else { return }
             var data = ESSpecificData()
             data.streamType = audioFormat.formatDescription.streamType
             data.elementaryPID = Self.defaultAudioPID
@@ -31,12 +37,11 @@ final class TSWriter {
             writeProgramIfNeeded()
         }
     }
+
     /// Specifies the video format.
     var videoFormat: CMFormatDescription? {
         didSet {
-            guard let videoFormat, videoFormat != oldValue else {
-                return
-            }
+            guard let videoFormat, videoFormat != oldValue else { return }
             var data = ESSpecificData()
             data.streamType = videoFormat.streamType
             data.elementaryPID = Self.defaultVideoPID
@@ -54,18 +59,12 @@ final class TSWriter {
     private(set) var pmt: TSProgramMap = .init()
     private var pcrPID: UInt16 = TSWriter.defaultVideoPID
     private var canWriteFor: Bool {
-        guard !expectedMedias.isEmpty else {
-            return true
-        }
+        guard !expectedMedias.isEmpty else { return true }
         if expectedMedias.contains(.audio) && expectedMedias.contains(.video) {
             return audioFormat != nil && videoFormat != nil
         }
-        if expectedMedias.contains(.video) {
-            return videoFormat != nil
-        }
-        if expectedMedias.contains(.audio) {
-            return audioFormat != nil
-        }
+        if expectedMedias.contains(.video) { return videoFormat != nil }
+        if expectedMedias.contains(.audio) { return audioFormat != nil }
         return false
     }
     private var videoTimeStamp: CMTime = .invalid
@@ -76,17 +75,14 @@ final class TSWriter {
     private var audioContinuityCounter: UInt8 = 0
     private var videoContinuityCounter: UInt8 = 0
     private var continuation: AsyncStream<Data>.Continuation? {
-        didSet {
-            oldValue?.finish()
-        }
+        didSet { oldValue?.finish() }
     }
 
-    /// Creates a new instance with segument duration.
     init(segmentDuration: Double = 2.0) {
         self.segmentDuration = segmentDuration
     }
 
-    /// Appends a buffer.
+    /// Appends an audio buffer.
     func append(_ audioBuffer: AVAudioBuffer, when: AVAudioTime) {
         guard let audioBuffer = audioBuffer as? AVAudioCompressedBuffer, canWriteFor else {
             return
@@ -97,7 +93,23 @@ final class TSWriter {
                 clockTimeStamp = audioTimeStamp
             }
         }
-        if var pes = PacketizedElementaryStream(audioBuffer, when: when, timeStamp: audioTimeStamp) {
+
+        // Utiliser l'initialiseur synchronisé si clockContext disponible
+        // sinon fallback sur l'initialiseur original
+        if let context = clockContext,
+           var pes = PacketizedElementaryStream(
+               synchronizedAudioCompressedBuffer: audioBuffer,
+               when: when,
+               context: context
+           ) {
+            pes.streamID = 192
+            writePacketizedElementaryStream(
+                TSWriter.defaultAudioPID,
+                PES: pes,
+                timeStamp: when.makeTime(),
+                randomAccessIndicator: true
+            )
+        } else if var pes = PacketizedElementaryStream(audioBuffer, when: when, timeStamp: audioTimeStamp) {
             pes.streamID = 192
             writePacketizedElementaryStream(
                 TSWriter.defaultAudioPID,
@@ -108,11 +120,9 @@ final class TSWriter {
         }
     }
 
-    /// Appends a buffer.
+    /// Appends a video sample buffer.
     func append(_ sampleBuffer: CMSampleBuffer) {
-        guard canWriteFor else {
-            return
-        }
+        guard canWriteFor else { return }
         switch sampleBuffer.formatDescription?.mediaType {
         case .video:
             if videoTimeStamp == .invalid {
@@ -121,9 +131,26 @@ final class TSWriter {
                     clockTimeStamp = videoTimeStamp
                 }
             }
-            if var pes = PacketizedElementaryStream(sampleBuffer, timeStamp: videoTimeStamp) {
-                let timestamp = sampleBuffer.decodeTimeStamp == .invalid ?
-                    sampleBuffer.presentationTimeStamp : sampleBuffer.decodeTimeStamp
+
+            let timestamp = sampleBuffer.decodeTimeStamp == .invalid
+                ? sampleBuffer.presentationTimeStamp
+                : sampleBuffer.decodeTimeStamp
+
+            // Utiliser l'initialiseur synchronisé si clockContext disponible
+            // sinon fallback sur l'initialiseur original
+            if let context = clockContext,
+               var pes = PacketizedElementaryStream(
+                   synchronizedVideoSampleBuffer: sampleBuffer,
+                   context: context
+               ) {
+                pes.streamID = 224
+                writePacketizedElementaryStream(
+                    Self.defaultVideoPID,
+                    PES: pes,
+                    timeStamp: timestamp,
+                    randomAccessIndicator: !sampleBuffer.isNotSync
+                )
+            } else if var pes = PacketizedElementaryStream(sampleBuffer, timeStamp: videoTimeStamp) {
                 pes.streamID = 224
                 writePacketizedElementaryStream(
                     Self.defaultVideoPID,
@@ -153,14 +180,13 @@ final class TSWriter {
         rotatedTimeStamp = .zero
         expectedMedias.removeAll()
         continuation = nil
+        clockContext = nil  // ← reset du contexte de synchro
     }
 
     private func writePacketizedElementaryStream(_ PID: UInt16, PES: PacketizedElementaryStream, timeStamp: CMTime, randomAccessIndicator: Bool) {
         let packets: [TSPacket] = split(PID, PES: PES, timestamp: timeStamp)
         rotateFileHandle(timeStamp)
-
         packets[0].adaptationField?.randomAccessIndicator = randomAccessIndicator
-
         var bytes = Data()
         for var packet in packets {
             switch PID {
@@ -175,15 +201,12 @@ final class TSWriter {
             }
             bytes.append(packet.data)
         }
-
         write(bytes)
     }
 
     private func rotateFileHandle(_ timestamp: CMTime) {
         let duration = timestamp.seconds - rotatedTimeStamp.seconds
-        guard segmentDuration < duration else {
-            return
-        }
+        guard segmentDuration < duration else { return }
         writeProgramIfNeeded()
         rotatedTimeStamp = timestamp
     }
@@ -205,12 +228,7 @@ final class TSWriter {
     }
 
     private func writeProgramIfNeeded() {
-        guard !expectedMedias.isEmpty else {
-            return
-        }
-        guard canWriteFor else {
-            return
-        }
+        guard !expectedMedias.isEmpty, canWriteFor else { return }
         writeProgram()
     }
 
