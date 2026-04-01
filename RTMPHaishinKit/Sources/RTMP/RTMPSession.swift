@@ -59,6 +59,14 @@ actor RTMPSession: StreamSession {
         // Retry handling at the TCP/IP level and during RTMP connection.
         do {
             _ = try await connection.connect(uri.command)
+
+
+
+        // Dans connect() de RTMPSession
+        print("🔗 command: \(uri.command)")
+        print("🔗 streamName: \(uri.streamName)")
+        //print("🔗 pathComponents: \(url.pathComponents)")
+
         } catch {
             guard retryCount < maxRetryCount else {
                 retryCount = 0
