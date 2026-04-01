@@ -621,18 +621,21 @@ public actor RTMPStream {
 
     func createStream() async {
         if let fcPublishName {
-            // FMLE-compatible sequences
+            print("🔴 Sending FCPublish: \(fcPublishName)")
             async let _ = connection?.call("releaseStream", arguments: fcPublishName)
             async let _ = connection?.call("FCPublish", arguments: fcPublishName)
         }
         do {
+            print("🔴 Calling createStream")
             let response = try await connection?.call("createStream")
+            print("🔴 createStream response: \(String(describing: response))")
             guard let first = response?.arguments.first as? Double else {
                 return
             }
             id = UInt32(first)
             readyState = .idle
         } catch {
+            print("🔴 createStream error: \(error)")
             logger.error(error)
         }
     }
