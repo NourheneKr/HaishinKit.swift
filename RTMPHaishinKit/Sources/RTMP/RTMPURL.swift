@@ -25,5 +25,12 @@ struct RTMPURL {
 
     init(url: URL) {
         self.url = url
+
+
+        // Dans connect() de RTMPSession
+        print("🔗 command: \(uri.command)")
+        print("🔗 streamName: \(uri.streamName)")
+        print("🔗 pathComponents: \(url.pathComponents)")
+
     }
 }
