@@ -110,6 +110,8 @@ public actor StreamRecorder {
     }()
     #endif
 
+    public var useNTPTimestamp: Bool = false
+
     private var isReadyForStartWriting: Bool {
         guard let writer = writer else {
             return false
@@ -287,10 +289,35 @@ public actor StreamRecorder {
             return
         }
 
+        // Remapper le timestamp avec NTP seulement si activé (SRT)
+        let bufferToWrite: CMSampleBuffer
+        if useNTPTimestamp {
+            let originalPTS = sampleBuffer.presentationTimeStamp
+            let ntpMs = TimestampConverter.shared.absoluteTimeMs(fromLocalTime: originalPTS)
+            let newPTS = CMTime(value: ntpMs, timescale: 1000)
+            
+            var timingInfo = CMSampleTimingInfo(
+                duration: sampleBuffer.duration,
+                presentationTimeStamp: newPTS,
+                decodeTimeStamp: .invalid
+            )
+            var remappedBuffer: CMSampleBuffer?
+            CMSampleBufferCreateCopyWithNewTiming(
+                allocator: nil,
+                sampleBuffer: sampleBuffer,
+                sampleTimingEntryCount: 1,
+                sampleTimingArray: &timingInfo,
+                sampleBufferOut: &remappedBuffer
+            )
+            bufferToWrite = remappedBuffer ?? sampleBuffer
+        } else {
+            bufferToWrite = sampleBuffer
+        }
+
         switch writer.status {
         case .unknown:
             writer.startWriting()
-            writer.startSession(atSourceTime: sampleBuffer.presentationTimeStamp)
+            writer.startSession(atSourceTime: bufferToWrite.presentationTimeStamp)
         default:
             break
         }
@@ -298,14 +325,14 @@ public actor StreamRecorder {
         if input.isReadyForMoreMediaData {
             switch mediaType {
             case .audio:
-                if input.append(sampleBuffer) {
-                    audioPresentationTime = sampleBuffer.presentationTimeStamp
+                if input.append(bufferToWrite) {
+                    audioPresentationTime = bufferToWrite.presentationTimeStamp
                 } else {
                     continuation?.yield(Error.failedToAppend(error: writer.error))
                 }
             case .video:
-                if input.append(sampleBuffer) {
-                    videoPresentationTime = sampleBuffer.presentationTimeStamp
+                if input.append(bufferToWrite) {
+                    videoPresentationTime = bufferToWrite.presentationTimeStamp
                 } else {
                     continuation?.yield(Error.failedToAppend(error: writer.error))
                 }
