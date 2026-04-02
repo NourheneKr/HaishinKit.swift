@@ -196,7 +196,6 @@ public actor RTMPStream {
     }
     /// The stream's name used for FMLE-compatible sequences.
     public private(set) var fcPublishName: String?
-    public var useFCPublish: Bool = false
 
     public private(set) var videoTrackId: UInt8? = UInt8.max
     public private(set) var audioTrackId: UInt8? = UInt8.max
@@ -275,10 +274,9 @@ public actor RTMPStream {
     }
 
     /// Creates a new stream.
-    public init(connection: RTMPConnection, fcPublishName: String? = nil, useFCPublish: Bool = false) {
+    public init(connection: RTMPConnection, fcPublishName: String? = nil) {
         self.connection = connection
         self.fcPublishName = fcPublishName
-        self.useFCPublish = useFCPublish
         self.requestTimeout = connection.requestTimeout
         Task {
             await self.startMixerInputConsumers()
@@ -622,22 +620,18 @@ public actor RTMPStream {
     }
 
     func createStream() async {
-        if useFCPublish, let fcPublishName {
-            print("🔴 Sending FCPublish: \(fcPublishName)")
+        if let fcPublishName {
             async let _ = connection?.call("releaseStream", arguments: fcPublishName)
             async let _ = connection?.call("FCPublish", arguments: fcPublishName)
         }
         do {
-            print("🔴 Calling createStream")
             let response = try await connection?.call("createStream")
-            print("🔴 createStream response: \(String(describing: response))")
             guard let first = response?.arguments.first as? Double else {
                 return
             }
             id = UInt32(first)
             readyState = .idle
         } catch {
-            print("🔴 createStream error: \(error)")
             logger.error(error)
         }
     }
