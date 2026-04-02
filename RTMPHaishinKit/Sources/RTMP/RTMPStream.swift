@@ -231,8 +231,6 @@ public actor RTMPStream {
     package lazy var outgoing = OutgoingStream()
     private weak var connection: RTMPConnection?
 
-    private var clockContext: StreamClockContext?
-
     private var audioFormat: AVAudioFormat? {
         didSet {
             guard audioFormat != oldValue else {
@@ -393,7 +391,6 @@ public actor RTMPStream {
             startedAt = .init()
             metadata = makeMetadata()
             readyState = .publishing
-            clockContext = StreamClockContext()
             try? send("@setDataFrame", arguments: "onMetaData", metadata)
             outgoing.startRunning()
             stopMixerInputConsumers()
@@ -428,7 +425,6 @@ public actor RTMPStream {
         stopMixerInputConsumers()
         startMixerInputConsumers()
         outgoing.stopRunning()
-        clockContext = nil
         return try await withCheckedThrowingContinuation { continutation in
             self.continuation = continutation
             switch readyState {
@@ -621,6 +617,7 @@ public actor RTMPStream {
 
     func createStream() async {
         if let fcPublishName {
+            // FMLE-compatible sequences
             async let _ = connection?.call("releaseStream", arguments: fcPublishName)
             async let _ = connection?.call("FCPublish", arguments: fcPublishName)
         }
@@ -765,18 +762,7 @@ extension RTMPStream: _Stream {
             if sampleBuffer.formatDescription?.isCompressed == true {
                 do {
                     let decodeTimeStamp = sampleBuffer.decodeTimeStamp.isValid ? sampleBuffer.decodeTimeStamp : sampleBuffer.presentationTimeStamp
-                    // let timedelta = try videoTimestamp.update(decodeTimeStamp)
-                    let timedelta: UInt32
-                    if let context = clockContext {
-                        let converter = TimestampConverter.shared
-                        let absoluteMs = sampleBuffer.presentationTimeStamp.isNumeric
-                            ? converter.absoluteTimeMs(fromLocalTime: sampleBuffer.presentationTimeStamp)
-                            : converter.absoluteTimeMs()
-                        timedelta = converter.toRTMPTimestamp(absoluteMs: absoluteMs, streamStartMs: context.startAbsoluteMs)
-                    } else {
-                        timedelta = try videoTimestamp.update(decodeTimeStamp)
-                    }
-
+                    let timedelta = try videoTimestamp.update(decodeTimeStamp)
                     frameCount += 1
                     videoFormat = sampleBuffer.formatDescription
                     guard let message = RTMPVideoMessage(streamId: id, timestamp: timedelta, sampleBuffer: sampleBuffer) else {
@@ -814,18 +800,7 @@ extension RTMPStream: _Stream {
         switch audioBuffer {
         case let audioBuffer as AVAudioCompressedBuffer:
             do {
-                //let timedelta = try audioTimestamp.update(when)
-                let timedelta: UInt32
-                if let context = clockContext {
-                    let converter = TimestampConverter.shared
-                    let localTime = when.makeTime()
-                    let absoluteMs = localTime.isNumeric
-                        ? converter.absoluteTimeMs(fromLocalTime: localTime)
-                        : converter.absoluteTimeMs()
-                    timedelta = converter.toRTMPTimestamp(absoluteMs: absoluteMs, streamStartMs: context.startAbsoluteMs)
-                } else {
-                    timedelta = try audioTimestamp.update(when)
-                }
+                let timedelta = try audioTimestamp.update(when)
                 audioFormat = audioBuffer.format
                 guard let message = RTMPAudioMessage(streamId: id, timestamp: timedelta, audioBuffer: audioBuffer) else {
                     return
