@@ -110,7 +110,7 @@ public actor StreamRecorder {
     }()
     #endif
 
-    public var useNTPTimestamp: Bool = false
+    public let useNTPTimestamp: Bool
 
     private var isReadyForStartWriting: Bool {
         guard let writer = writer else {
@@ -132,8 +132,10 @@ public actor StreamRecorder {
     private var inputConsumerTask: Task<Void, Never>?
 
     /// Creates a new recorder.
-    public init() {
+    public init(useNTPTimestamp: Bool = false) {
+        self.useNTPTimestamp = useNTPTimestamp
     }
+
 
     /// Sets the movie fragment interval in sec.
     ///
