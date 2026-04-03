@@ -296,6 +296,7 @@ public actor StreamRecorder {
         if useNTPTimestamp {
             let originalPTS = sampleBuffer.presentationTimeStamp
             let ntpMs = TimestampConverter.shared.absoluteTimeMs(fromLocalTime: originalPTS)
+            let currentUnix = Int64(Date().timeIntervalSince1970 * 1000)
             print("🎬 [StreamRecorder] originalPTS seconds: \(originalPTS.seconds), ntpMs: \(ntpMs), currentUnix: \(currentUnix), diff: \(ntpMs - currentUnix)ms")
 
             let newPTS = CMTime(value: ntpMs, timescale: 1000)
