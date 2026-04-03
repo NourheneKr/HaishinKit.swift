@@ -58,14 +58,9 @@ extension PacketizedElementaryStream {
             ? converter.absoluteTimeMs(fromLocalTime: sampleBuffer.decodeTimeStamp)
             : nil
 
-        // 3) Conversion vers PTS / DTS 90kHz
-        let pts90k = converter.toPTS90k(
-            absoluteMs: absolutePresentationMs,
-            streamStartMs: context.startAbsoluteMs
-        )
-        let dts90k: Int64? = absoluteDecodeMs.map {
-            converter.toPTS90k(absoluteMs: $0, streamStartMs: context.startAbsoluteMs)
-        }
+        // 3) Conversion vers PTS / DTS 90kHz (absolu, ancré sur Unix epoch)
+        let pts90k = converter.toPTS90k(absoluteMs: absolutePresentationMs)
+        let dts90k: Int64? = absoluteDecodeMs.map { converter.toPTS90k(absoluteMs: $0) }
 
         // 4) Injection dans l'en-tête PES
         optionalPESHeader = PESOptionalHeader()
@@ -104,11 +99,8 @@ extension PacketizedElementaryStream {
             ? converter.absoluteTimeMs(fromLocalTime: localAudioTime)
             : converter.absoluteTimeMs()
 
-        // 2) Conversion vers PTS 90kHz
-        let pts90k = converter.toPTS90k(
-            absoluteMs: absolutePresentationMs,
-            streamStartMs: context.startAbsoluteMs
-        )
+        // 2) Conversion vers PTS 90kHz (absolu, ancré sur Unix epoch)
+        let pts90k = converter.toPTS90k(absoluteMs: absolutePresentationMs)
 
         // 3) Injection dans PES
         optionalPESHeader = PESOptionalHeader()

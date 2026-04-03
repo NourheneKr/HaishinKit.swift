@@ -237,7 +237,14 @@ final class TSWriter {
         var PCR: UInt64?
         let duration: Double = timestamp.seconds - clockTimeStamp.seconds
         if pcrPID == PID && 0.02 <= duration {
-            PCR = UInt64((timestamp.seconds - (PID == Self.defaultVideoPID ? videoTimeStamp : audioTimeStamp).seconds) * TSTimestamp.resolution)
+            if clockContext != nil {
+                // PCR absolu ancré sur Unix epoch — cohérent avec les PTS absolus
+                let absMs = TimestampConverter.shared.absoluteTimeMs(fromLocalTime: timestamp)
+                let pts33Mask: UInt64 = (1 << 33) - 1  // 8_589_934_591
+                PCR = UInt64(absMs * 90) & pts33Mask
+            } else {
+                PCR = UInt64((timestamp.seconds - (PID == Self.defaultVideoPID ? videoTimeStamp : audioTimeStamp).seconds) * TSTimestamp.resolution)
+            }
             clockTimeStamp = timestamp
         }
         var packets: [TSPacket] = []

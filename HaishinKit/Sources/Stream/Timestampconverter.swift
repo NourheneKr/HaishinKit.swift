@@ -82,12 +82,13 @@ public final class TimestampConverter: @unchecked Sendable {
 
     // MARK: - MPEG-TS / SRT conversion (90kHz)
 
-    /// Convertit un temps absolu (ms) vers un PTS MPEG-TS 90 kHz.
-    /// 1 ms = 90 ticks à 90 kHz.
-    /// Clampé à 0 pour éviter les PTS négatifs au démarrage.
-    public func toPTS90k(absoluteMs: Int64, streamStartMs: Int64) -> Int64 {
-        let deltaMs = max(0, absoluteMs - streamStartMs)
-        return deltaMs * 90
+    /// Convertit un temps absolu Unix (ms) vers un PTS MPEG-TS 90 kHz ancré sur l'epoch.
+    /// PTS 33 bits max à 90kHz → wrap-around toutes les ~26.5h.
+    /// Produit un timestamp absolu du type 1775204205123 * 90 mod 2^33
+    /// permettant la synchro inter-devices sans base de départ commune.
+    public func toPTS90k(absoluteMs: Int64) -> Int64 {
+        let pts33Mask: Int64 = (1 << 33) - 1  // 8_589_934_591
+        return (absoluteMs * 90) & pts33Mask
     }
 
     /// Convertit un PTS 90 kHz en CMTime compatible avec PESOptionalHeader.setTimestamp.
@@ -97,11 +98,11 @@ public final class TimestampConverter: @unchecked Sendable {
 
     // MARK: - RTMP conversion (ms)
 
-    /// Convertit un temps absolu (ms) vers un timestamp RTMP (UInt32 ms).
-    /// Clampé à 0 pour éviter les valeurs négatives au démarrage.
-    public func toRTMPTimestamp(absoluteMs: Int64, streamStartMs: Int64) -> UInt32 {
-        let deltaMs = max(0, absoluteMs - streamStartMs)
-        // UInt32 max = ~49 jours — pas d'overflow en usage normal
-        return UInt32(min(deltaMs, Int64(UInt32.max)))
+    /// Convertit un temps absolu Unix (ms) vers un timestamp RTMP (UInt32 ms) ancré sur l'epoch.
+    /// UInt32 max ≈ 49.7 jours → wrap-around naturel, cohérent avec le standard RTMP.
+    /// Produit un timestamp absolu du type 1775204205123 & 0xFFFFFFFF
+    /// permettant la synchro inter-devices sans base de départ commune.
+    public func toRTMPTimestamp(absoluteMs: Int64) -> UInt32 {
+        return UInt32(absoluteMs & Int64(UInt32.max))
     }
 }
