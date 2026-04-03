@@ -69,6 +69,7 @@ public actor NTPClient {
 
                 // Offset = différence serveur/local corrigée du RTT
                 let offset = (serverUnixSeconds - localUnixSeconds) * 1000 - halfRttMs
+                print("🌐 [NTPClient] serverUnixSeconds: \(serverUnixSeconds), localUnixSeconds: \(localUnixSeconds), rttMs: \(rttMs), offset: \(offset)")
 
                 continuation.resume(returning: offset)
             }

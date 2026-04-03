@@ -69,10 +69,15 @@ public final class TimestampConverter: @unchecked Sendable {
     /// Convertit un CMTime local en temps absolu ms.
     public func absoluteTimeMs(fromLocalTime localTime: CMTime) -> Int64 {
         guard localTime.isNumeric, localTime.timescale != 0 else {
-            return absoluteTimeMs()
+            let fallback = absoluteTimeMs()
+            print("🕐 [TimestampConverter] localTime invalide, fallback: \(fallback)")
+            return fallback
         }
         let localMs = Int64((localTime.seconds * 1000.0).rounded())
-        return localMs + currentOffset()
+        let offset = currentOffset()
+        let result = localMs + offset
+        print("🕐 [TimestampConverter] localMs: \(localMs), offset: \(offset), result: \(result)")
+        return result
     }
 
     // MARK: - MPEG-TS / SRT conversion (90kHz)
