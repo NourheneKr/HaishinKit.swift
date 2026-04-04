@@ -284,9 +284,14 @@ final class RTMPChunkBuffer {
     }
 
     private func putMessageHeader(_ chunkType: RTMPChunkType, length: Int, message: some RTMPMessage) {
+        let useExtended = message.timestamp >= RTMPChunkMessageHeader.maxTimestamp
         switch chunkType {
         case .zero:
-            data.replaceSubrange(position..<position + 3, with: message.timestamp.bigEndian.data[1...3])
+            if useExtended {
+                data[position] = 0xFF; data[position + 1] = 0xFF; data[position + 2] = 0xFF
+            } else {
+                data.replaceSubrange(position..<position + 3, with: message.timestamp.bigEndian.data[1...3])
+            }
             position += 3
             data.replaceSubrange(position..<position + 3, with: UInt32(length).bigEndian.data[1...3])
             position += 3
@@ -294,13 +299,25 @@ final class RTMPChunkBuffer {
             position += 1
             data.replaceSubrange(position..<position + 4, with: message.streamId.littleEndian.data)
             position += 4
+            if useExtended {
+                data.replaceSubrange(position..<position + 4, with: message.timestamp.bigEndian.data)
+                position += 4
+            }
         case .one:
-            data.replaceSubrange(position..<position + 3, with: message.timestamp.bigEndian.data[1...3])
+            if useExtended {
+                data[position] = 0xFF; data[position + 1] = 0xFF; data[position + 2] = 0xFF
+            } else {
+                data.replaceSubrange(position..<position + 3, with: message.timestamp.bigEndian.data[1...3])
+            }
             position += 3
             data.replaceSubrange(position..<position + 3, with: UInt32(length).bigEndian.data[1...3])
             position += 3
             data[position] = message.type.rawValue
             position += 1
+            if useExtended {
+                data.replaceSubrange(position..<position + 4, with: message.timestamp.bigEndian.data)
+                position += 4
+            }
         case .two:
             data.replaceSubrange(position...position + 3, with: message.timestamp.bigEndian.data[1...3])
             position += 3
