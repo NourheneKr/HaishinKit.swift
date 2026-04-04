@@ -767,11 +767,12 @@ extension RTMPStream: _Stream {
             if sampleBuffer.formatDescription?.isCompressed == true {
                 frameCount += 1
                 videoFormat = sampleBuffer.formatDescription
-                if clockContext != nil {
-                    // Path absolu NTP — timestamp ancré sur Unix epoch (mod UInt32)
+                if let clockContext {
+                    // Timestamp NTP relatif au démarrage du stream (requis par le protocole RTMP)
                     let pts = sampleBuffer.decodeTimeStamp.isValid ? sampleBuffer.decodeTimeStamp : sampleBuffer.presentationTimeStamp
                     let absMs = TimestampConverter.shared.absoluteTimeMs(fromLocalTime: pts)
-                    let timestamp = TimestampConverter.shared.toRTMPTimestamp(absoluteMs: absMs)
+                    let relativeMs = max(0, absMs - clockContext.startAbsoluteMs)
+                    let timestamp = UInt32(relativeMs & Int64(UInt32.max))
                     guard let message = RTMPVideoMessage(streamId: id, timestamp: timestamp, sampleBuffer: sampleBuffer) else {
                         return
                     }
@@ -815,10 +816,11 @@ extension RTMPStream: _Stream {
     public func append(_ audioBuffer: AVAudioBuffer, when: AVAudioTime) {
         switch audioBuffer {
         case let audioBuffer as AVAudioCompressedBuffer:
-            if clockContext != nil {
-                // Path absolu NTP — timestamp ancré sur Unix epoch (mod UInt32)
+            if let clockContext {
+                // Timestamp NTP relatif au démarrage du stream (requis par le protocole RTMP)
                 let absMs = TimestampConverter.shared.absoluteTimeMs(fromLocalTime: when.makeTime())
-                let timestamp = TimestampConverter.shared.toRTMPTimestamp(absoluteMs: absMs)
+                let relativeMs = max(0, absMs - clockContext.startAbsoluteMs)
+                let timestamp = UInt32(relativeMs & Int64(UInt32.max))
                 audioFormat = audioBuffer.format
                 guard let message = RTMPAudioMessage(streamId: id, timestamp: timestamp, audioBuffer: audioBuffer) else {
                     return
