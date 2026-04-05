@@ -26,6 +26,8 @@ public actor SRTStream {
     private weak var connection: SRTConnection?
     nonisolated(unsafe) private var mixerAudioContinuation: AsyncStream<(AVAudioPCMBuffer, AVAudioTime)>.Continuation?
     nonisolated(unsafe) private var mixerVideoContinuation: AsyncStream<CMSampleBuffer>.Continuation?
+    
+    private var isCalibrated = false
 
     public var performanceData: SRTPerformanceData? {
         get async {
@@ -141,6 +143,7 @@ public actor SRTStream {
         startMixerInputConsumers()
         writer.clear()
         writer.clockContext = nil
+        isCalibrated = false
         reader.clear()
         outgoing.stopRunning()
         Task { await incoming.stopRunning() }
@@ -191,17 +194,22 @@ extension SRTStream: _Stream {
         }
         outgoing.audioSettings = audioSettings
     }
-
+    
     public func setVideoSettings(_ videoSettings: VideoCodecSettings) throws {
         guard Self.supportedVideoCodecs.contains(videoSettings.format) else {
             throw Error.unsupportedCodec
         }
         outgoing.videoSettings = videoSettings
     }
-
+    
     public func append(_ sampleBuffer: CMSampleBuffer) {
         switch sampleBuffer.formatDescription?.mediaType {
         case .video:
+            // Calibration sur le premier buffer compressé reçu
+            if !isCalibrated, sampleBuffer.formatDescription?.isCompressed == true {
+                TimestampConverter.shared.calibrate(with: sampleBuffer)
+                isCalibrated = true
+            }
             if sampleBuffer.formatDescription?.isCompressed == true {
                 writer.videoFormat = sampleBuffer.formatDescription
                 writer.append(sampleBuffer)
@@ -213,10 +221,15 @@ extension SRTStream: _Stream {
             break
         }
     }
-
+    
     public func append(_ audioBuffer: AVAudioBuffer, when: AVAudioTime) {
         switch audioBuffer {
         case let audioBuffer as AVAudioPCMBuffer:
+            // Calibration audio uniquement si pas encore calibré (flux audio seul)
+            if !isCalibrated {
+                TimestampConverter.shared.calibrate(with: when)
+                isCalibrated = true
+            }
             outgoing.append(audioBuffer, when: when)
             outputs.forEach { $0.stream(self, didOutput: audioBuffer, when: when) }
         case let audioBuffer as AVAudioCompressedBuffer:

@@ -230,6 +230,9 @@ public actor RTMPStream {
     package lazy var incoming = IncomingStream(self)
     package lazy var outgoing = OutgoingStream()
     private weak var connection: RTMPConnection?
+    
+    private var isCalibrated = false
+    public var useAbsoluteTimestamp: Bool = false
 
     private var audioFormat: AVAudioFormat? {
         didSet {
@@ -425,6 +428,7 @@ public actor RTMPStream {
         stopMixerInputConsumers()
         startMixerInputConsumers()
         outgoing.stopRunning()
+        isCalibrated = false
         return try await withCheckedThrowingContinuation { continutation in
             self.continuation = continutation
             switch readyState {
@@ -761,14 +765,34 @@ extension RTMPStream: _Stream {
         case .video:
             if sampleBuffer.formatDescription?.isCompressed == true {
                 do {
-                    let decodeTimeStamp = sampleBuffer.decodeTimeStamp.isValid ? sampleBuffer.decodeTimeStamp : sampleBuffer.presentationTimeStamp
-                    let timedelta = try videoTimestamp.update(decodeTimeStamp)
+                    let decodeTimeStamp = sampleBuffer.decodeTimeStamp.isValid
+                        ? sampleBuffer.decodeTimeStamp
+                        : sampleBuffer.presentationTimeStamp
+                    
+                    // Calibration sur le premier buffer compressé
+                    if useAbsoluteTimestamp && !isCalibrated {
+                        TimestampConverter.shared.calibrate(with: sampleBuffer)
+                        isCalibrated = true
+                    }
+                    
+                    let timedelta: UInt32
+                    if useAbsoluteTimestamp {
+                        // Timestamp absolu : Unix epoch tronqué à UInt32 (wrap ~49.7 jours)
+                        let pts = sampleBuffer.presentationTimeStamp
+                        let absMs = TimestampConverter.shared.absoluteTimeMs(fromLocalTime: pts)
+                        timedelta = TimestampConverter.shared.toRTMPTimestamp(absoluteMs: absMs)
+                    } else {
+                        // Comportement original : delta depuis début du stream
+                        timedelta = try videoTimestamp.update(decodeTimeStamp)
+                    }
+                    
                     frameCount += 1
                     videoFormat = sampleBuffer.formatDescription
                     guard let message = RTMPVideoMessage(streamId: id, timestamp: timedelta, sampleBuffer: sampleBuffer) else {
                         return
                     }
-                    doOutput(.one, chunkStreamId: .video, message: message)
+                    // Type .zero pour le premier paquet absolu (pas de delta), .one ensuite
+                    doOutput(useAbsoluteTimestamp ? .zero : .one, chunkStreamId: .video, message: message)
                 } catch {
                     logger.warn(error)
                 }
@@ -800,12 +824,19 @@ extension RTMPStream: _Stream {
         switch audioBuffer {
         case let audioBuffer as AVAudioCompressedBuffer:
             do {
-                let timedelta = try audioTimestamp.update(when)
+                let timedelta: UInt32
+                if useAbsoluteTimestamp {
+                    let localTime = when.makeTime()
+                    let absMs = TimestampConverter.shared.absoluteTimeMs(fromLocalTime: localTime)
+                    timedelta = TimestampConverter.shared.toRTMPTimestamp(absoluteMs: absMs)
+                } else {
+                    timedelta = try audioTimestamp.update(when)
+                }
                 audioFormat = audioBuffer.format
                 guard let message = RTMPAudioMessage(streamId: id, timestamp: timedelta, audioBuffer: audioBuffer) else {
                     return
                 }
-                doOutput(.one, chunkStreamId: .audio, message: message)
+                doOutput(useAbsoluteTimestamp ? .zero : .one, chunkStreamId: .audio, message: message)
             } catch {
                 logger.warn(error)
             }

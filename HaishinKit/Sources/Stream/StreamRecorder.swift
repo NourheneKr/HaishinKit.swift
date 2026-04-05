@@ -296,11 +296,10 @@ public actor StreamRecorder {
         if useNTPTimestamp {
             let originalPTS = sampleBuffer.presentationTimeStamp
             let ntpMs = TimestampConverter.shared.absoluteTimeMs(fromLocalTime: originalPTS)
-            let currentUnix = Int64(Date().timeIntervalSince1970 * 1000)
-            print("🎬 [StreamRecorder] originalPTS seconds: \(originalPTS.seconds), ntpMs: \(ntpMs), currentUnix: \(currentUnix), diff: \(ntpMs - currentUnix)ms")
+
+            print("🎬 [StreamRecorder] PTS local=\(String(format: "%.3f", originalPTS.seconds))s → absolu=\(ntpMs)ms")
 
             let newPTS = CMTime(value: ntpMs, timescale: 1000)
-            
             var timingInfo = CMSampleTimingInfo(
                 duration: sampleBuffer.duration,
                 presentationTimeStamp: newPTS,
@@ -318,7 +317,7 @@ public actor StreamRecorder {
         } else {
             bufferToWrite = sampleBuffer
         }
-
+        
         switch writer.status {
         case .unknown:
             writer.startWriting()

@@ -1,5 +1,6 @@
 import Foundation
 import CoreMedia
+import AVFoundation
 
 /// Centralise toute la logique de conversion temporelle.
 ///
@@ -86,9 +87,13 @@ public final class TimestampConverter: @unchecked Sendable {
     /// PTS 33 bits max à 90kHz → wrap-around toutes les ~26.5h.
     /// Produit un timestamp absolu du type 1775204205123 * 90 mod 2^33
     /// permettant la synchro inter-devices sans base de départ commune.
+    /// epoch journalière, tient dans 33 bits, identique sur tous les devices NTP-sync
     public func toPTS90k(absoluteMs: Int64) -> Int64 {
-        let pts33Mask: Int64 = (1 << 33) - 1  // 8_589_934_591
-        return (absoluteMs * 90) & pts33Mask
+        // On prend le temps depuis minuit UTC du jour courant.
+        // Max = 86_400_000 ms * 90 = 7_776_000_000 — tient dans 33 bits (max 8_589_934_591).
+        // Deux devices synchronisés NTP auront exactement la même valeur pour la même frame.
+        let msSinceMidnight = absoluteMs % (24 * 3600 * 1000)
+        return msSinceMidnight * 90
     }
 
     /// Convertit un PTS 90 kHz en CMTime compatible avec PESOptionalHeader.setTimestamp.
@@ -104,5 +109,40 @@ public final class TimestampConverter: @unchecked Sendable {
     /// permettant la synchro inter-devices sans base de départ commune.
     public func toRTMPTimestamp(absoluteMs: Int64) -> UInt32 {
         return UInt32(absoluteMs & Int64(UInt32.max))
+    }
+    
+    // MARK: - Calibration sur buffer réel
+
+    /// Recalibre l'offset global en utilisant un CMSampleBuffer fraîchement capturé.
+    /// À appeler sur le PREMIER buffer vidéo ou audio reçu dans publish().
+    /// Garantit que absoluteTimeMs(fromLocalTime:) est ancré sur la même
+    /// horloge que les presentationTimeStamp des buffers AVFoundation.
+    public func calibrate(with sampleBuffer: CMSampleBuffer) {
+        let pts = sampleBuffer.presentationTimeStamp
+        guard pts.isNumeric, pts.timescale != 0, pts.seconds > 0 else { return }
+        
+        let unixMs = Int64(Date().timeIntervalSince1970 * 1000)
+        let ptsMs  = Int64((pts.seconds * 1000.0).rounded())
+        
+        lock.lock()
+        globalOffsetMs = unixMs - ptsMs
+        lock.unlock()
+        
+        print("🔧 [TimestampConverter] Calibrated: unixMs=\(unixMs) ptsMs=\(ptsMs) newOffset=\(unixMs - ptsMs)")
+    }
+
+    /// Même chose à partir d'un AVAudioTime (pour calibration sur buffer audio).
+    public func calibrate(with audioTime: AVAudioTime) {
+        let localTime = audioTime.makeTime()
+        guard localTime.isNumeric, localTime.timescale != 0, localTime.seconds > 0 else { return }
+        
+        let unixMs = Int64(Date().timeIntervalSince1970 * 1000)
+        let ptsMs  = Int64((localTime.seconds * 1000.0).rounded())
+        
+        lock.lock()
+        globalOffsetMs = unixMs - ptsMs
+        lock.unlock()
+        
+        print("🔧 [TimestampConverter] Calibrated (audio): unixMs=\(unixMs) ptsMs=\(ptsMs) newOffset=\(unixMs - ptsMs)")
     }
 }
