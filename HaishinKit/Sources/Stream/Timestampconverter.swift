@@ -23,6 +23,11 @@ public final class TimestampConverter: @unchecked Sendable {
 
     private let lock = NSLock()
 
+    // Ancre de session — capturée une seule fois au premier buffer
+    private var sessionAnchorLocalMs: Int64 = 0
+    private var sessionAnchorAbsoluteMs: Int64 = 0
+    private var isSessionAnchored = false
+
     public init(clock: CMClock = CMClockGetHostTimeClock()) {
         self.hostClock = clock
 
@@ -144,5 +149,36 @@ public final class TimestampConverter: @unchecked Sendable {
         lock.unlock()
         
         print("🔧 [TimestampConverter] Calibrated (audio): unixMs=\(unixMs) ptsMs=\(ptsMs) newOffset=\(unixMs - ptsMs)")
+    }
+
+    /// Ancre la session sur le premier buffer reçu.
+    /// Audio et vidéo partagent EXACTEMENT la même origine.
+    public func anchorSession(localMs: Int64) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !isSessionAnchored else { return }
+        sessionAnchorLocalMs = localMs
+        sessionAnchorAbsoluteMs = localMs + globalOffsetMs
+        isSessionAnchored = true
+        print("⚓ [TimestampConverter] Session anchored: localMs=\(localMs) → absoluteMs=\(sessionAnchorAbsoluteMs)")
+    }
+
+    /// Convertit un temps local en absolu en utilisant l'ancre de session.
+    /// Garantit la cohérence A/V : même drift, même origine.
+    public func absoluteMsFromAnchor(localMs: Int64) -> Int64 {
+        lock.lock()
+        defer { lock.unlock() }
+        guard isSessionAnchored else { return localMs + globalOffsetMs }
+        // On conserve exactement le delta local, on le transpose dans l'espace absolu
+        let deltaFromAnchor = localMs - sessionAnchorLocalMs
+        return sessionAnchorAbsoluteMs + deltaFromAnchor
+    }
+
+    public func resetSession() {
+        lock.lock()
+        isSessionAnchored = false
+        sessionAnchorLocalMs = 0
+        sessionAnchorAbsoluteMs = 0
+        lock.unlock()
     }
 }
