@@ -319,7 +319,7 @@ final class RTMPChunkBuffer {
                 position += 4
             }
         case .two:
-            data.replaceSubrange(position...position + 3, with: message.timestamp.bigEndian.data[1...3])
+            data.replaceSubrange(position..<position + 3, with: message.timestamp.bigEndian.data[1...3])
             position += 3
         case .three:
             break

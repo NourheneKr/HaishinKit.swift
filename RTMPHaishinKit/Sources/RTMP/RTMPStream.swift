@@ -201,9 +201,6 @@ public actor RTMPStream {
     public private(set) var audioTrackId: UInt8? = UInt8.max
 
     private var isPaused = false
-    /// Contexte de synchronisation temporelle NTP.
-    /// Nil = comportement RTMP original (timestamps relatifs au démarrage).
-    private var clockContext: StreamClockContext?
     private var startedAt = Date() {
         didSet {
             dataTimestamps.removeAll()
@@ -394,7 +391,6 @@ public actor RTMPStream {
             startedAt = .init()
             metadata = makeMetadata()
             readyState = .publishing
-            clockContext = StreamClockContext()
             try? send("@setDataFrame", arguments: "onMetaData", metadata)
             outgoing.startRunning()
             stopMixerInputConsumers()
@@ -429,7 +425,6 @@ public actor RTMPStream {
         stopMixerInputConsumers()
         startMixerInputConsumers()
         outgoing.stopRunning()
-        clockContext = nil
         return try await withCheckedThrowingContinuation { continutation in
             self.continuation = continutation
             switch readyState {
@@ -765,29 +760,17 @@ extension RTMPStream: _Stream {
         switch sampleBuffer.formatDescription?.mediaType {
         case .video:
             if sampleBuffer.formatDescription?.isCompressed == true {
-                frameCount += 1
-                videoFormat = sampleBuffer.formatDescription
-                if let clockContext {
-                    // Timestamp NTP relatif au démarrage du stream (requis par le protocole RTMP)
-                    let pts = sampleBuffer.decodeTimeStamp.isValid ? sampleBuffer.decodeTimeStamp : sampleBuffer.presentationTimeStamp
-                    let absMs = TimestampConverter.shared.absoluteTimeMs(fromLocalTime: pts)
-                    let relativeMs = max(0, absMs - clockContext.startAbsoluteMs)
-                    let timestamp = UInt32(relativeMs & Int64(UInt32.max))
-                    guard let message = RTMPVideoMessage(streamId: id, timestamp: timestamp, sampleBuffer: sampleBuffer) else {
+                do {
+                    let decodeTimeStamp = sampleBuffer.decodeTimeStamp.isValid ? sampleBuffer.decodeTimeStamp : sampleBuffer.presentationTimeStamp
+                    let timedelta = try videoTimestamp.update(decodeTimeStamp)
+                    frameCount += 1
+                    videoFormat = sampleBuffer.formatDescription
+                    guard let message = RTMPVideoMessage(streamId: id, timestamp: timedelta, sampleBuffer: sampleBuffer) else {
                         return
                     }
-                    doOutput(.zero, chunkStreamId: .video, message: message)
-                } else {
-                    do {
-                        let decodeTimeStamp = sampleBuffer.decodeTimeStamp.isValid ? sampleBuffer.decodeTimeStamp : sampleBuffer.presentationTimeStamp
-                        let timedelta = try videoTimestamp.update(decodeTimeStamp)
-                        guard let message = RTMPVideoMessage(streamId: id, timestamp: timedelta, sampleBuffer: sampleBuffer) else {
-                            return
-                        }
-                        doOutput(.one, chunkStreamId: .video, message: message)
-                    } catch {
-                        logger.warn(error)
-                    }
+                    doOutput(.one, chunkStreamId: .video, message: message)
+                } catch {
+                    logger.warn(error)
                 }
             } else {
                 outgoing.append(sampleBuffer)
@@ -816,27 +799,15 @@ extension RTMPStream: _Stream {
     public func append(_ audioBuffer: AVAudioBuffer, when: AVAudioTime) {
         switch audioBuffer {
         case let audioBuffer as AVAudioCompressedBuffer:
-            if let clockContext {
-                // Timestamp NTP relatif au démarrage du stream (requis par le protocole RTMP)
-                let absMs = TimestampConverter.shared.absoluteTimeMs(fromLocalTime: when.makeTime())
-                let relativeMs = max(0, absMs - clockContext.startAbsoluteMs)
-                let timestamp = UInt32(relativeMs & Int64(UInt32.max))
+            do {
+                let timedelta = try audioTimestamp.update(when)
                 audioFormat = audioBuffer.format
-                guard let message = RTMPAudioMessage(streamId: id, timestamp: timestamp, audioBuffer: audioBuffer) else {
+                guard let message = RTMPAudioMessage(streamId: id, timestamp: timedelta, audioBuffer: audioBuffer) else {
                     return
                 }
-                doOutput(.zero, chunkStreamId: .audio, message: message)
-            } else {
-                do {
-                    let timedelta = try audioTimestamp.update(when)
-                    audioFormat = audioBuffer.format
-                    guard let message = RTMPAudioMessage(streamId: id, timestamp: timedelta, audioBuffer: audioBuffer) else {
-                        return
-                    }
-                    doOutput(.one, chunkStreamId: .audio, message: message)
-                } catch {
-                    logger.warn(error)
-                }
+                doOutput(.one, chunkStreamId: .audio, message: message)
+            } catch {
+                logger.warn(error)
             }
         default:
             outgoing.append(audioBuffer, when: when)
