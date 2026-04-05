@@ -149,6 +149,12 @@ public final class TimestampConverter: @unchecked Sendable {
         lock.unlock()
         
         print("🔧 [TimestampConverter] Calibrated (audio): unixMs=\(unixMs) ptsMs=\(ptsMs) newOffset=\(unixMs - ptsMs)")
+        // Log post-calibration — offset maintenant ancré sur les vrais buffers
+        let absoluteNow = absoluteTimeMs()
+        let realUnixNow = Int64(Date().timeIntervalSince1970 * 1000)
+        let diff = absoluteNow - realUnixNow
+        print("🔧 [TimestampConverter] Calibrated (audio): unixMs=\(unixMs) ptsMs=\(ptsMs) newOffset=\(unixMs - ptsMs)")
+        print("✅ [TimestampConverter] Post-calibration check: absoluteMs=\(absoluteNow) realUnixMs=\(realUnixNow) diff=\(diff)ms")
     }
 
     /// Ancre la session sur le premier buffer reçu.
