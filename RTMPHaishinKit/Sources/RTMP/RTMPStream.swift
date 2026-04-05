@@ -232,7 +232,7 @@ public actor RTMPStream {
     private weak var connection: RTMPConnection?
     
     private var isCalibrated = false
-    public var useAbsoluteTimestamp: Bool = false
+    private var useAbsoluteTimestamp: Bool = false
 
     private var audioFormat: AVAudioFormat? {
         didSet {
@@ -556,6 +556,10 @@ public actor RTMPStream {
     /// Pauses or resumes playback of a stream.
     public func togglePause() async throws -> RTMPResponse {
         try await pause(!isPaused)
+    }
+    
+    public func enableAbsoluteTimestamp() {
+        useAbsoluteTimestamp = true
     }
 
     func doOutput(_ type: RTMPChunkType, chunkStreamId: RTMPChunkStreamId, message: some RTMPMessage) {
