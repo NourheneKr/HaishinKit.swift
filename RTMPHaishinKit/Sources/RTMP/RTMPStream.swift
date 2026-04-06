@@ -234,6 +234,8 @@ public actor RTMPStream {
     private var useAbsoluteTimestamp: Bool = false
     private var isCalibrated: Bool = false
 
+    private var hasLoggedFirstRemap = false
+
     private var audioFormat: AVAudioFormat? {
         didSet {
             guard audioFormat != oldValue else {
@@ -430,6 +432,7 @@ public actor RTMPStream {
         outgoing.stopRunning()
         TimestampConverter.shared.resetSession()
         isCalibrated = false
+        hasLoggedFirstRemap = false
 
         return try await withCheckedThrowingContinuation { continutation in
             self.continuation = continutation
@@ -754,7 +757,10 @@ public actor RTMPStream {
     private func remapToAbsolutePTS(_ sampleBuffer: CMSampleBuffer) -> CMSampleBuffer {
         let originalPTS = sampleBuffer.presentationTimeStamp
         let originalDTS = sampleBuffer.decodeTimeStamp
-        guard originalPTS.isNumeric else { return sampleBuffer }
+        guard originalPTS.isNumeric else {
+            print("⚠️ [remap] PTS invalide — buffer ignoré")
+            return sampleBuffer
+        }
 
         let localMs = Int64((originalPTS.seconds * 1000).rounded())
         
@@ -762,6 +768,12 @@ public actor RTMPStream {
         TimestampConverter.shared.anchorSession(localMs: localMs)
         
         let absoluteMs = TimestampConverter.shared.absoluteMsFromAnchor(localMs: localMs)
+
+        if !hasLoggedFirstRemap {
+            hasLoggedFirstRemap = true
+            let realUnix = Int64(Date().timeIntervalSince1970 * 1000)
+            print("🎯 [remap] PREMIÈRE frame — local=\(localMs)ms absolu=\(absoluteMs)ms diff=\(absoluteMs - realUnix)ms")
+        }
         let newPTS = CMTime(value: absoluteMs, timescale: 1000)
 
         let newDTS: CMTime
@@ -893,6 +905,7 @@ extension RTMPStream: _Stream {
 
     public func enableAbsoluteTimestamp() {
         useAbsoluteTimestamp = true
+        print("✅ [RTMP] timestamps absolus activés")
     }
 }
 

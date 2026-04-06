@@ -47,6 +47,7 @@ public final class TimestampConverter: @unchecked Sendable {
         lock.lock()
         globalOffsetMs += offsetMs
         lock.unlock()
+        print("🌐 [NTP] offset appliqué: \(offsetMs)ms — offset total: \(total)ms")
     }
 
     /// Retourne l'offset courant.
@@ -166,7 +167,9 @@ public final class TimestampConverter: @unchecked Sendable {
         sessionAnchorLocalMs = localMs
         sessionAnchorAbsoluteMs = localMs + globalOffsetMs
         isSessionAnchored = true
-        print("⚓ [TimestampConverter] Session anchored: localMs=\(localMs) → absoluteMs=\(sessionAnchorAbsoluteMs)")
+        let realUnix = Int64(Date().timeIntervalSince1970 * 1000)
+        let diff = sessionAnchorAbsoluteMs - realUnix
+        print("⚓ [Anchor] localMs=\(localMs) → absolu=\(sessionAnchorAbsoluteMs) — diff avec Date()=\(diff)ms")
     }
 
     /// Convertit un temps local en absolu en utilisant l'ancre de session.
@@ -186,5 +189,6 @@ public final class TimestampConverter: @unchecked Sendable {
         sessionAnchorLocalMs = 0
         sessionAnchorAbsoluteMs = 0
         lock.unlock()
+        print("🔁 [Anchor] session reset")
     }
 }
