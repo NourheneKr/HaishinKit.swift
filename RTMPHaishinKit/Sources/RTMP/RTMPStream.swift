@@ -758,7 +758,6 @@ public actor RTMPStream {
         let originalPTS = sampleBuffer.presentationTimeStamp
         let originalDTS = sampleBuffer.decodeTimeStamp
         guard originalPTS.isNumeric else {
-            print("⚠️ [remap] PTS invalide — buffer ignoré")
             return sampleBuffer
         }
 
@@ -772,7 +771,6 @@ public actor RTMPStream {
         if !hasLoggedFirstRemap {
             hasLoggedFirstRemap = true
             let realUnix = Int64(Date().timeIntervalSince1970 * 1000)
-            print("🎯 [remap] PREMIÈRE frame — local=\(localMs)ms absolu=\(absoluteMs)ms diff=\(absoluteMs - realUnix)ms")
         }
         let newPTS = CMTime(value: absoluteMs, timescale: 1000)
 
@@ -784,8 +782,6 @@ public actor RTMPStream {
         } else {
             newDTS = .invalid
         }
-
-        print("🎯 [remap] local=\(localMs)ms → absolute=\(absoluteMs)ms")
 
         var timingInfo = CMSampleTimingInfo(
             duration: sampleBuffer.duration,
@@ -905,7 +901,6 @@ extension RTMPStream: _Stream {
 
     public func enableAbsoluteTimestamp() {
         useAbsoluteTimestamp = true
-        print("✅ [RTMP] timestamps absolus activés")
     }
 }
 

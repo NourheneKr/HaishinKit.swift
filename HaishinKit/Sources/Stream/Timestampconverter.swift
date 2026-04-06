@@ -46,8 +46,6 @@ public final class TimestampConverter: @unchecked Sendable {
     public func updateOffset(_ offsetMs: Int64) {
         lock.lock()
         globalOffsetMs += offsetMs
-        let total = globalOffsetMs
-        print("🌐 [NTP] offset appliqué: \(offsetMs)ms — offset total: \(total)ms")
         lock.unlock()
     }
 
@@ -78,13 +76,11 @@ public final class TimestampConverter: @unchecked Sendable {
     public func absoluteTimeMs(fromLocalTime localTime: CMTime) -> Int64 {
         guard localTime.isNumeric, localTime.timescale != 0 else {
             let fallback = absoluteTimeMs()
-            print("🕐 [TimestampConverter] localTime invalide, fallback: \(fallback)")
             return fallback
         }
         let localMs = Int64((localTime.seconds * 1000.0).rounded())
         let offset = currentOffset()
         let result = localMs + offset
-        print("🕐 [TimestampConverter] localMs: \(localMs), offset: \(offset), result: \(result)")
         return result
     }
 
@@ -134,8 +130,6 @@ public final class TimestampConverter: @unchecked Sendable {
         lock.lock()
         globalOffsetMs = unixMs - ptsMs
         lock.unlock()
-        
-        print("🔧 [TimestampConverter] Calibrated: unixMs=\(unixMs) ptsMs=\(ptsMs) newOffset=\(unixMs - ptsMs)")
     }
 
     /// Même chose à partir d'un AVAudioTime (pour calibration sur buffer audio).
@@ -148,15 +142,7 @@ public final class TimestampConverter: @unchecked Sendable {
         
         lock.lock()
         globalOffsetMs = unixMs - ptsMs
-        lock.unlock()
-        
-        print("🔧 [TimestampConverter] Calibrated (audio): unixMs=\(unixMs) ptsMs=\(ptsMs) newOffset=\(unixMs - ptsMs)")
-        // Log post-calibration — offset maintenant ancré sur les vrais buffers
-        let absoluteNow = absoluteTimeMs()
-        let realUnixNow = Int64(Date().timeIntervalSince1970 * 1000)
-        let diff = absoluteNow - realUnixNow
-        print("🔧 [TimestampConverter] Calibrated (audio): unixMs=\(unixMs) ptsMs=\(ptsMs) newOffset=\(unixMs - ptsMs)")
-        print("✅ [TimestampConverter] Post-calibration check: absoluteMs=\(absoluteNow) realUnixMs=\(realUnixNow) diff=\(diff)ms")
+        lock.unlock()        
     }
 
     /// Ancre la session sur le premier buffer reçu.
@@ -168,9 +154,6 @@ public final class TimestampConverter: @unchecked Sendable {
         sessionAnchorLocalMs = localMs
         sessionAnchorAbsoluteMs = localMs + globalOffsetMs
         isSessionAnchored = true
-        let realUnix = Int64(Date().timeIntervalSince1970 * 1000)
-        let diff = sessionAnchorAbsoluteMs - realUnix
-        print("⚓ [Anchor] localMs=\(localMs) → absolu=\(sessionAnchorAbsoluteMs) — diff avec Date()=\(diff)ms")
     }
 
     /// Convertit un temps local en absolu en utilisant l'ancre de session.
@@ -190,6 +173,5 @@ public final class TimestampConverter: @unchecked Sendable {
         sessionAnchorLocalMs = 0
         sessionAnchorAbsoluteMs = 0
         lock.unlock()
-        print("🔁 [Anchor] session reset")
     }
 }

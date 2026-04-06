@@ -297,8 +297,6 @@ public actor StreamRecorder {
             let originalPTS = sampleBuffer.presentationTimeStamp
             let ntpMs = TimestampConverter.shared.absoluteTimeMs(fromLocalTime: originalPTS)
 
-            print("🎬 [StreamRecorder] PTS local=\(String(format: "%.3f", originalPTS.seconds))s → absolu=\(ntpMs)ms")
-
             let newPTS = CMTime(value: ntpMs, timescale: 1000)
             var timingInfo = CMSampleTimingInfo(
                 duration: sampleBuffer.duration,
