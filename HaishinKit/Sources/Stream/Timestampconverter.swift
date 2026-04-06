@@ -46,8 +46,9 @@ public final class TimestampConverter: @unchecked Sendable {
     public func updateOffset(_ offsetMs: Int64) {
         lock.lock()
         globalOffsetMs += offsetMs
-        lock.unlock()
+        let total = globalOffsetMs
         print("🌐 [NTP] offset appliqué: \(offsetMs)ms — offset total: \(total)ms")
+        lock.unlock()
     }
 
     /// Retourne l'offset courant.
