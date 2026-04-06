@@ -242,6 +242,10 @@ final class TSWriter {
                 let absMs = TimestampConverter.shared.absoluteTimeMs(fromLocalTime: timestamp)
                 let pts33Mask: UInt64 = (1 << 33) - 1  // 8_589_934_591
                 PCR = UInt64(absMs * 90) & pts33Mask
+
+                let pts90k = UInt64(absMs * 90)
+                print("📡 [TSWriter] PCR absMs=\(absMs) pts90k_raw=\(pts90k) pts90k_masked=\(pts90k & pts33Mask) overflow=\(pts90k > pts33Mask)")
+
             } else {
                 PCR = UInt64((timestamp.seconds - (PID == Self.defaultVideoPID ? videoTimeStamp : audioTimeStamp).seconds) * TSTimestamp.resolution)
             }

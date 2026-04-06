@@ -28,6 +28,7 @@ public actor SRTStream {
     nonisolated(unsafe) private var mixerVideoContinuation: AsyncStream<CMSampleBuffer>.Continuation?
     
     private var isCalibrated = false
+    private let calibrationLock = NSLock()
 
     public var performanceData: SRTPerformanceData? {
         get async {
@@ -143,7 +144,9 @@ public actor SRTStream {
         startMixerInputConsumers()
         writer.clear()
         writer.clockContext = nil
+        calibrationLock.lock()
         isCalibrated = false
+        calibrationLock.unlock()
         reader.clear()
         outgoing.stopRunning()
         Task { await incoming.stopRunning() }
@@ -206,9 +209,10 @@ extension SRTStream: _Stream {
         switch sampleBuffer.formatDescription?.mediaType {
         case .video:
             // Calibration sur le premier buffer compressé reçu
-            if !isCalibrated, sampleBuffer.formatDescription?.isCompressed == true {
-                TimestampConverter.shared.calibrate(with: sampleBuffer)
-                isCalibrated = true
+            if sampleBuffer.formatDescription?.isCompressed == true {
+                calibrateOnce {
+                    TimestampConverter.shared.calibrate(with: sampleBuffer)
+                }
             }
             if sampleBuffer.formatDescription?.isCompressed == true {
                 writer.videoFormat = sampleBuffer.formatDescription
@@ -226,9 +230,8 @@ extension SRTStream: _Stream {
         switch audioBuffer {
         case let audioBuffer as AVAudioPCMBuffer:
             // Calibration audio uniquement si pas encore calibré (flux audio seul)
-            if !isCalibrated {
-                TimestampConverter.shared.calibrate(with: when)
-                isCalibrated = true
+            calibrateOnce {
+                TimestampConverter.shared.calibrate(with: sampleBuffer)
             }
             outgoing.append(audioBuffer, when: when)
             outputs.forEach { $0.stream(self, didOutput: audioBuffer, when: when) }
@@ -243,6 +246,15 @@ extension SRTStream: _Stream {
     public func dispatch(_ event: NetworkMonitorEvent) async {
         await bitRateStrategy?.adjustBitrate(event, stream: self)
     }
+
+    private func calibrateOnce(action: () -> Void) {
+        calibrationLock.lock()
+        defer { calibrationLock.unlock() }
+        guard !isCalibrated else { return }
+        isCalibrated = true
+        action()
+    }
+
 }
 
 extension SRTStream: MediaMixerOutput {
