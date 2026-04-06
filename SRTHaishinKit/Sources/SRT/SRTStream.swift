@@ -28,7 +28,6 @@ public actor SRTStream {
     nonisolated(unsafe) private var mixerVideoContinuation: AsyncStream<CMSampleBuffer>.Continuation?
     
     private var isCalibrated = false
-    private let calibrationLock = NSLock()
 
     public var performanceData: SRTPerformanceData? {
         get async {
@@ -231,7 +230,7 @@ extension SRTStream: _Stream {
         case let audioBuffer as AVAudioPCMBuffer:
             // Calibration audio uniquement si pas encore calibré (flux audio seul)
             calibrateOnce {
-                TimestampConverter.shared.calibrate(with: sampleBuffer)
+                TimestampConverter.shared.calibrate(with: when)
             }
             outgoing.append(audioBuffer, when: when)
             outputs.forEach { $0.stream(self, didOutput: audioBuffer, when: when) }
@@ -248,8 +247,6 @@ extension SRTStream: _Stream {
     }
 
     private func calibrateOnce(action: () -> Void) {
-        calibrationLock.lock()
-        defer { calibrationLock.unlock() }
         guard !isCalibrated else { return }
         isCalibrated = true
         action()
