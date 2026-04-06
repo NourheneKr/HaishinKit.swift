@@ -143,9 +143,7 @@ public actor SRTStream {
         startMixerInputConsumers()
         writer.clear()
         writer.clockContext = nil
-        calibrationLock.lock()
         isCalibrated = false
-        calibrationLock.unlock()
         reader.clear()
         outgoing.stopRunning()
         Task { await incoming.stopRunning() }
