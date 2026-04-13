@@ -28,6 +28,8 @@ public actor SRTStream {
     nonisolated(unsafe) private var mixerVideoContinuation: AsyncStream<CMSampleBuffer>.Continuation?
     
     private var isCalibrated = false
+    /// Timestamp du premier buffer brut reçu après publish().
+    /// Utilisé pour ignorer les frames audio/vidéo accumulées avant le publish.
     private var publishStartTime: CMTime = .invalid
 
     public var performanceData: SRTPerformanceData? {
@@ -77,11 +79,13 @@ public actor SRTStream {
         stopMixerInputConsumers()
         startMixerInputConsumers()
         outgoing.startRunning()
-        publishStartTime = CMClockGetTime(CMClockGetHostTimeClock())
         writer.clockContext = StreamClockContext()
+        // Reset de la session de synchronisation pour ce nouveau publish
         TimestampConverter.shared.resetSession()
+        // Vider le writer pour ne pas streamer les frames accumulées
+        // avant le publish avec un mauvais offset
         writer.clear()
-        writer.clockContext = StreamClockContext()  // recréer après clear()
+        writer.clockContext = StreamClockContext()
 
         let wall = Int64(Date().timeIntervalSince1970 * 1000)
         let absolute = TimestampConverter.shared.absoluteTimeMs()
@@ -160,7 +164,9 @@ public actor SRTStream {
         writer.clear()
         writer.clockContext = nil
         isCalibrated = false
+        // Reset du publishStartTime pour le prochain publish
         publishStartTime = .invalid
+        // Reset complet du converter pour le prochain publish
         TimestampConverter.shared.resetSession()
         reader.clear()
         outgoing.stopRunning()
@@ -227,8 +233,11 @@ extension SRTStream: _Stream {
             print("[SRT][APPEND] isCompressed=\(String(describing: isCompressed)) pts=\(sampleBuffer.presentationTimeStamp.seconds)s")
 
             if sampleBuffer.formatDescription?.isCompressed == false {
-                // Calibration sur buffer BRUT, avant encodage
+                // Calibration sur buffer BRUT, avant encodage.
+                // publishStartTime est posé ici sur le premier buffer brut réel,
+                // ce qui sert de seuil pour ignorer les frames accumulées avant le publish.
                 calibrateOnce {
+                    publishStartTime = sampleBuffer.presentationTimeStamp
                     TimestampConverter.shared.calibrate(
                         localPTS: sampleBuffer.presentationTimeStamp
                     )
@@ -236,6 +245,8 @@ extension SRTStream: _Stream {
                 outgoing.append(sampleBuffer)
                 outputs.forEach { $0.stream(self, didOutput: sampleBuffer) }
             } else {
+                // Ignorer les frames vidéo compressées antérieures au publish
+                // (accumulées dans le pipeline d'encodage avant publish())
                 if sampleBuffer.presentationTimeStamp.isNumeric && publishStartTime.isNumeric {
                     guard sampleBuffer.presentationTimeStamp.seconds >= publishStartTime.seconds else { return }
                 }
@@ -257,6 +268,8 @@ extension SRTStream: _Stream {
             outgoing.append(audioBuffer, when: when)
             outputs.forEach { $0.stream(self, didOutput: audioBuffer, when: when) }
         case let audioBuffer as AVAudioCompressedBuffer:
+            // Ignorer les frames audio compressées antérieures au publish
+            // (accumulées dans le codec AAC avant publish())
             let frameTime = when.makeTime()
             if frameTime.isNumeric && publishStartTime.isNumeric {
                 guard frameTime.seconds >= publishStartTime.seconds else { return }
