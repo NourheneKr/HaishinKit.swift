@@ -77,6 +77,18 @@ public actor SRTStream {
         startMixerInputConsumers()
         outgoing.startRunning()
         writer.clockContext = StreamClockContext()
+
+
+        let wall = Int64(Date().timeIntervalSince1970 * 1000)
+        let absolute = TimestampConverter.shared.absoluteTimeMs()
+        let offset = TimestampConverter.shared.currentOffset()
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print("[SRT][NTP] offset         = \(offset)ms")
+        print("[SRT][NTP] wall (Date())  = \(wall)ms")
+        print("[SRT][NTP] absoluteNow    = \(absolute)ms")
+        print("[SRT][NTP] écart wall/abs = \(wall - absolute)ms  ← doit être ~0")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
         if outgoing.videoInputFormat != nil {
             writer.expectedMedias.insert(.video)
         }

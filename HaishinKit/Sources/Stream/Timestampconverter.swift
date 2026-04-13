@@ -128,6 +128,24 @@ public final class TimestampConverter: @unchecked Sendable {
         globalOffsetMs = unixMs - ptsMs
         isCalibrated = true
         lock.unlock()
+
+        guard !isCalibrated else {
+            lock.unlock()
+            return
+        }
+        globalOffsetMs = unixMs - ptsMs
+        isCalibrated = true
+        let offsetSnapshot = globalOffsetMs
+        lock.unlock()
+
+        // ✅ AJOUTER
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        print("[CALIBRATE] localPTS     = \(ptsMs)ms")
+        print("[CALIBRATE] wall         = \(unixMs)ms")
+        print("[CALIBRATE] newOffset    = \(offsetSnapshot)ms")
+        print("[CALIBRATE] vérif: PTS + offset = \(ptsMs + offsetSnapshot)ms  ← doit = wall")
+        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
     }
 
     public func anchorSession(localMs: Int64, mediaType: AVMediaType) {

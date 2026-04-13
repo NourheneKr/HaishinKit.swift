@@ -766,6 +766,14 @@ public actor RTMPStream {
         // Ancrer la session sur le premier buffer — vidéo partage cette ancre
         TimestampConverter.shared.anchorSession(localMs: localMs, mediaType: .video)
         let absoluteMs = TimestampConverter.shared.absoluteMsFromAnchor(localMs: localMs, mediaType: .video)
+
+        let wall = Int64(Date().timeIntervalSince1970 * 1000)
+        let drift = wall - absoluteMs
+        let isKeyFrame = !sampleBuffer.isNotSync
+        let driftStatus = abs(drift) < 100 ? "✅" : abs(drift) < 300 ? "⚠️" : "❌"
+        let keyMark = isKeyFrame ? " 🔑" : ""
+        print("[RTMP][VIDEO\(keyMark)] localPTS=\(localMs)ms abs=\(absoluteMs)ms drift=\(drift)ms\(driftStatus)")
+
         if !hasLoggedFirstRemap {
             hasLoggedFirstRemap = true
             let realUnix = Int64(Date().timeIntervalSince1970 * 1000)
@@ -873,6 +881,12 @@ extension RTMPStream: _Stream {
                     let localMs = Int64((localTime.seconds * 1000).rounded())
                     TimestampConverter.shared.anchorSession(localMs: localMs, mediaType: .audio)
                     let absoluteMs = TimestampConverter.shared.absoluteMsFromAnchor(localMs: localMs, mediaType: .audio)
+
+                    let wall = Int64(Date().timeIntervalSince1000 * 1000)
+                    let drift = wall - absoluteMs
+                    let driftStatus = abs(drift) < 100 ? "✅" : abs(drift) < 300 ? "⚠️" : "❌"
+                    print("[RTMP][AUDIO] localPTS=\(localMs)ms abs=\(absoluteMs)ms drift=\(drift)ms\(driftStatus)")
+
                     let sampleTime = AVAudioFramePosition(
                         Double(absoluteMs) / 1000.0 * when.sampleRate
                     )

@@ -63,6 +63,13 @@ extension PacketizedElementaryStream {
         let pts90k = converter.toPTS90k(absoluteMs: absolutePresentationMs) & pts33Mask
         let dts90k: Int64? = absoluteDecodeMs.map { converter.toPTS90k(absoluteMs: $0) & pts33Mask }
 
+        Self.logFrame(
+            media: "VIDEO",
+            localPTS: sampleBuffer.presentationTimeStamp,
+            absoluteMs: absolutePresentationMs,
+            isKeyFrame: !sampleBuffer.isNotSync
+        )
+
         // 4) Injection dans l'en-tête PES
         optionalPESHeader = PESOptionalHeader()
         optionalPESHeader?.dataAlignmentIndicator = true
@@ -103,6 +110,13 @@ extension PacketizedElementaryStream {
         // 2) Conversion vers PTS 90kHz (absolu, ancré sur Unix epoch)
         let pts33Mask: Int64 = (1 << 33) - 1
         let pts90k = converter.toPTS90k(absoluteMs: absolutePresentationMs) & pts33Mask
+
+        Self.logFrame(
+            media: "AUDIO",
+            localPTS: localAudioTime,
+            absoluteMs: absolutePresentationMs,
+            isKeyFrame: false
+        )
 
         // 3) Injection dans PES
         optionalPESHeader = PESOptionalHeader()
