@@ -783,7 +783,7 @@ public actor RTMPStream {
         let newDTS: CMTime
         if originalDTS.isNumeric {
             let dtsLocalMs = Int64((originalDTS.seconds * 1000).rounded())
-            let absoluteDtsMs = TimestampConverter.shared.absoluteMsFromAnchor(localMs: dtsLocalMs)
+            let absoluteDtsMs = TimestampConverter.shared.absoluteMsFromAnchor(localMs: dtsLocalMs, mediaType: .video)
             newDTS = CMTime(value: absoluteDtsMs, timescale: 1000)
         } else {
             newDTS = .invalid
@@ -882,7 +882,7 @@ extension RTMPStream: _Stream {
                     TimestampConverter.shared.anchorSession(localMs: localMs, mediaType: .audio)
                     let absoluteMs = TimestampConverter.shared.absoluteMsFromAnchor(localMs: localMs, mediaType: .audio)
 
-                    let wall = Int64(Date().timeIntervalSince1000 * 1000)
+                    let wall = Int64(Date().timeIntervalSince1970 * 1000)
                     let drift = wall - absoluteMs
                     let driftStatus = abs(drift) < 100 ? "✅" : abs(drift) < 300 ? "⚠️" : "❌"
                     print("[RTMP][AUDIO] localPTS=\(localMs)ms abs=\(absoluteMs)ms drift=\(drift)ms\(driftStatus)")
