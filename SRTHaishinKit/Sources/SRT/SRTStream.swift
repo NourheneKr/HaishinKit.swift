@@ -217,6 +217,9 @@ extension SRTStream: _Stream {
     public func append(_ sampleBuffer: CMSampleBuffer) {
         switch sampleBuffer.formatDescription?.mediaType {
         case .video:
+            let isCompressed = sampleBuffer.formatDescription?.isCompressed
+            print("[SRT][APPEND] isCompressed=\(String(describing: isCompressed)) pts=\(sampleBuffer.presentationTimeStamp.seconds)s")
+
             if sampleBuffer.formatDescription?.isCompressed == false {
                 // Calibration sur buffer BRUT, avant encodage
                 calibrateOnce {

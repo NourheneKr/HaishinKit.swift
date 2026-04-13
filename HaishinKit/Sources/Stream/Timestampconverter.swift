@@ -113,7 +113,14 @@ public final class TimestampConverter: @unchecked Sendable {
     
     // MARK: - Calibration : avec le CMTime du buffer brut
     public func calibrate(localPTS: CMTime) {
-        guard localPTS.isNumeric, localPTS.seconds > 1 else { return }
+        guard localPTS.isNumeric else {
+            print("[CALIBRATE] ❌ rejeté — PTS non numérique")
+            return
+        }
+        guard localPTS.seconds > 1 else {
+            print("[CALIBRATE] ❌ rejeté — PTS trop petit: \(localPTS.seconds)s")
+            return
+        }
 
         // Capture atomique : CMClockGetTime + gettimeofday dans le même appel
         var tv = timeval()
