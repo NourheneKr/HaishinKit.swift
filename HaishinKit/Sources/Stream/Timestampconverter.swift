@@ -124,25 +124,18 @@ public final class TimestampConverter: @unchecked Sendable {
             print("[CALIBRATE] ❌ rejeté — PTS non numérique")
             return
         }
-        guard localPTS.seconds > 1 else {
+        guard localPTS.seconds > 0 else {
             print("[CALIBRATE] ❌ rejeté — PTS trop petit: \(localPTS.seconds)s")
             return
         }
 
-        // Capture atomique : CMClockGetTime + gettimeofday dans le même appel
         var tv = timeval()
-        let cmNow = CMClockGetTime(CMClockGetHostTimeClock())
         gettimeofday(&tv, nil)
 
         let unixMs = Int64(tv.tv_sec) * 1000 + Int64(tv.tv_usec) / 1000
         let ptsMs  = Int64((localPTS.seconds * 1000).rounded())
 
         lock.lock()
-        guard !isCalibrated else { lock.unlock(); return }
-        globalOffsetMs = unixMs - ptsMs
-        isCalibrated = true
-        lock.unlock()
-
         guard !isCalibrated else {
             print("[CALIBRATE] ⚠️ déjà calibré — skip")
             lock.unlock()
@@ -153,14 +146,12 @@ public final class TimestampConverter: @unchecked Sendable {
         let offsetSnapshot = globalOffsetMs
         lock.unlock()
 
-        // ✅ AJOUTER
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        print("[CALIBRATE] localPTS     = \(ptsMs)ms")
-        print("[CALIBRATE] wall         = \(unixMs)ms")
-        print("[CALIBRATE] newOffset    = \(offsetSnapshot)ms")
-        print("[CALIBRATE] vérif: PTS + offset = \(ptsMs + offsetSnapshot)ms  ← doit = wall")
+        print("[CALIBRATE] ✅ localPTS  = \(ptsMs)ms")
+        print("[CALIBRATE] ✅ wall      = \(unixMs)ms")
+        print("[CALIBRATE] ✅ newOffset = \(offsetSnapshot)ms")
+        print("[CALIBRATE] ✅ vérif     = \(ptsMs + offsetSnapshot)ms ← doit = wall")
         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-
     }
 
     public func anchorSession(localMs: Int64, mediaType: AVMediaType) {
