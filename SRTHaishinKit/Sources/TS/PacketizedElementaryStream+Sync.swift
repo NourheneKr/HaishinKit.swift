@@ -162,6 +162,8 @@ extension PacketizedElementaryStream {
         isKeyFrame: Bool,
         proto: String = "SRT"
     ) {
+
+        let wallAtCapture = Int64(Date().timeIntervalSince1970 * 1000)
         Task {
             let (delta, index) = await SyncLogState.shared.update(
                 media: media,
@@ -169,8 +171,7 @@ extension PacketizedElementaryStream {
             )
             guard isKeyFrame || index % 30 == 0 else { return }
 
-            let wall = Int64(Date().timeIntervalSince1970 * 1000)
-            let drift = wall - absoluteMs
+            let drift = wallAtCapture - absoluteMs
             let localMs = Int64((localPTS.seconds * 1000).rounded())
 
             let driftStatus = abs(drift) < 100 ? "✅" : abs(drift) < 300 ? "⚠️" : "❌"

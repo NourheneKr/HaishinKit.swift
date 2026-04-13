@@ -39,10 +39,15 @@ public final class TimestampConverter: @unchecked Sendable {
 
         let unixMs = Int64(Date().timeIntervalSince1970 * 1000)
         let time = CMClockGetTime(clock)
+
+        print("[TimestampConverter] init — time.isNumeric=\(time.isNumeric) time.seconds=\(time.seconds) timescale=\(time.timescale)")
+
         let hostMs = (time.isNumeric && time.timescale != 0)
             ? Int64((time.seconds * 1000.0).rounded())
             : 0
         self.globalOffsetMs = unixMs - hostMs
+
+        print("[TimestampConverter] init — hostMs=\(hostMs) unixMs=\(unixMs) globalOffsetMs=\(globalOffsetMs)")
     }
     
     // MARK: - Offset management
@@ -113,6 +118,8 @@ public final class TimestampConverter: @unchecked Sendable {
     
     // MARK: - Calibration : avec le CMTime du buffer brut
     public func calibrate(localPTS: CMTime) {
+        print("[CALIBRATE] appelé avec pts=\(localPTS.seconds)s isNumeric=\(localPTS.isNumeric)")
+
         guard localPTS.isNumeric else {
             print("[CALIBRATE] ❌ rejeté — PTS non numérique")
             return
@@ -137,6 +144,7 @@ public final class TimestampConverter: @unchecked Sendable {
         lock.unlock()
 
         guard !isCalibrated else {
+            print("[CALIBRATE] ⚠️ déjà calibré — skip")
             lock.unlock()
             return
         }
