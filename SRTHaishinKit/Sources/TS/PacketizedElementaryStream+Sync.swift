@@ -133,3 +133,51 @@ extension PacketizedElementaryStream {
         packetLength = UInt16(length)
     }
 }
+
+// TO DELETE AFTER TESTING
+
+// Actor dédié pour éviter les warnings Swift 6 concurrency
+private actor SyncLogState {
+    static let shared = SyncLogState()
+    var lastVideoAbsoluteMs: Int64 = 0
+    var lastAudioAbsoluteMs: Int64 = 0
+    var frameIndex: Int = 0
+
+    func update(media: String, absoluteMs: Int64) -> (delta: Int64, index: Int) {
+        frameIndex += 1
+        let last = media == "VIDEO" ? lastVideoAbsoluteMs : lastAudioAbsoluteMs
+        let delta = last == 0 ? 0 : absoluteMs - last
+        if media == "VIDEO" { lastVideoAbsoluteMs = absoluteMs }
+        else { lastAudioAbsoluteMs = absoluteMs }
+        return (delta, frameIndex)
+    }
+}
+
+extension PacketizedElementaryStream {
+
+    static func logFrame(
+        media: String,
+        localPTS: CMTime,
+        absoluteMs: Int64,
+        isKeyFrame: Bool,
+        proto: String = "SRT"
+    ) {
+        Task {
+            let (delta, index) = await SyncLogState.shared.update(
+                media: media,
+                absoluteMs: absoluteMs
+            )
+            guard isKeyFrame || index % 30 == 0 else { return }
+
+            let wall = Int64(Date().timeIntervalSince1970 * 1000)
+            let drift = wall - absoluteMs
+            let localMs = Int64((localPTS.seconds * 1000).rounded())
+
+            let driftStatus = abs(drift) < 100 ? "✅" : abs(drift) < 300 ? "⚠️" : "❌"
+            let deltaStatus = delta > 0 && delta < 5000 ? "✅" : delta == 0 ? "" : "⚠️"
+            let keyMark = isKeyFrame ? " 🔑" : ""
+
+            print("[\(proto)][\(media)\(keyMark)] localPTS=\(localMs)ms abs=\(absoluteMs)ms drift=\(drift)ms\(driftStatus) Δ=\(delta)ms\(deltaStatus)")
+        }
+    }
+}

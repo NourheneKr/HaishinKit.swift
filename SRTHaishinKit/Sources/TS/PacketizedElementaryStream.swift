@@ -158,49 +158,6 @@ struct PacketizedElementaryStream: PESPacketHeader {
     var optionalPESHeader: PESOptionalHeader?
     var data = Data()
 
-
-    private static var lastVideoAbsoluteMs: Int64 = 0
-    private static var lastAudioAbsoluteMs: Int64 = 0
-    private static var frameIndex: Int = 0
-
-    private static func logFrame(
-        media: String,
-        localPTS: CMTime,
-        absoluteMs: Int64,
-        isKeyFrame: Bool,
-        proto: String = "SRT"
-    ) {
-        frameIndex += 1
-        // Logger seulement 1 frame sur 30 pour ne pas noyer Xcode
-        // + toutes les keyframes
-        guard isKeyFrame || frameIndex % 30 == 0 else { return }
-
-        let wall = Int64(Date().timeIntervalSince1970 * 1000)
-        let drift = wall - absoluteMs
-        let localMs = Int64((localPTS.seconds * 1000).rounded())
-
-        // Écart avec la frame précédente du même type
-        let lastMs = media == "VIDEO" ? lastVideoAbsoluteMs : lastAudioAbsoluteMs
-        let delta = lastMs == 0 ? 0 : absoluteMs - lastMs
-
-        if media == "VIDEO" { lastVideoAbsoluteMs = absoluteMs }
-        else { lastAudioAbsoluteMs = absoluteMs }
-
-        // Indicateurs visuels
-        let driftStatus  = abs(drift)  < 100 ? "✅" : abs(drift)  < 300 ? "⚠️" : "❌"
-        let deltaStatus  = delta > 0 && delta < 5000 ? "✅" : delta == 0 ? "" : "⚠️"
-        let keyMark      = isKeyFrame ? " 🔑" : ""
-
-        print("""
-        [\(proto)][\(media)\(keyMark)] \
-        localPTS=\(localMs)ms \
-        abs=\(absoluteMs)ms \
-        drift=\(drift)ms\(driftStatus) \
-        Δ=\(delta)ms\(deltaStatus)
-        """)
-    }
-
-
     var payload: Data {
         get {
             ByteArray()
