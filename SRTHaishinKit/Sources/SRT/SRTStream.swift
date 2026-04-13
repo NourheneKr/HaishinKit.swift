@@ -240,7 +240,7 @@ extension SRTStream: _Stream {
         case let audioBuffer as AVAudioPCMBuffer:
             // Calibration audio uniquement si pas encore calibré (flux audio seul)
             calibrateOnce {
-                TimestampConverter.shared.calibrate(with: when)
+                TimestampConverter.shared.calibrate(localPTS: when.makeTime())
             }
             outgoing.append(audioBuffer, when: when)
             outputs.forEach { $0.stream(self, didOutput: audioBuffer, when: when) }
