@@ -78,6 +78,8 @@ public actor SRTStream {
         outgoing.startRunning()
         writer.clockContext = StreamClockContext()
         TimestampConverter.shared.resetSession()
+        writer.clear()
+        writer.clockContext = StreamClockContext()  // recréer après clear()
 
         let wall = Int64(Date().timeIntervalSince1970 * 1000)
         let absolute = TimestampConverter.shared.absoluteTimeMs()
@@ -156,6 +158,7 @@ public actor SRTStream {
         writer.clear()
         writer.clockContext = nil
         isCalibrated = false
+        TimestampConverter.shared.resetSession()
         reader.clear()
         outgoing.stopRunning()
         Task { await incoming.stopRunning() }
