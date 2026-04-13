@@ -205,18 +205,18 @@ extension SRTStream: _Stream {
     public func append(_ sampleBuffer: CMSampleBuffer) {
         switch sampleBuffer.formatDescription?.mediaType {
         case .video:
-            // Calibration sur le premier buffer compressé reçu
-            if sampleBuffer.formatDescription?.isCompressed == true {
+            if sampleBuffer.formatDescription?.isCompressed == false {
+                // Calibration sur buffer BRUT, avant encodage
                 calibrateOnce {
-                    TimestampConverter.shared.calibrate(with: sampleBuffer)
+                    TimestampConverter.shared.calibrate(
+                        localPTS: sampleBuffer.presentationTimeStamp
+                    )
                 }
-            }
-            if sampleBuffer.formatDescription?.isCompressed == true {
-                writer.videoFormat = sampleBuffer.formatDescription
-                writer.append(sampleBuffer)
-            } else {
                 outgoing.append(sampleBuffer)
                 outputs.forEach { $0.stream(self, didOutput: sampleBuffer) }
+            } else {
+                writer.videoFormat = sampleBuffer.formatDescription
+                writer.append(sampleBuffer)
             }
         default:
             break

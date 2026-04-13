@@ -763,11 +763,9 @@ public actor RTMPStream {
 
         let localMs = Int64((originalPTS.seconds * 1000).rounded())
         
-        // Ancrer la session sur le premier buffer — audio et vidéo partagent cette ancre
-        TimestampConverter.shared.anchorSession(localMs: localMs)
-        
-        let absoluteMs = TimestampConverter.shared.absoluteMsFromAnchor(localMs: localMs)
-
+        // Ancrer la session sur le premier buffer — vidéo partage cette ancre
+        TimestampConverter.shared.anchorSession(localMs: localMs, mediaType: .video)
+        let absoluteMs = TimestampConverter.shared.absoluteMsFromAnchor(localMs: localMs, mediaType: .video)
         if !hasLoggedFirstRemap {
             hasLoggedFirstRemap = true
             let realUnix = Int64(Date().timeIntervalSince1970 * 1000)
@@ -873,8 +871,8 @@ extension RTMPStream: _Stream {
                 let localTime = when.makeTime()
                 if localTime.isNumeric {
                     let localMs = Int64((localTime.seconds * 1000).rounded())
-                    TimestampConverter.shared.anchorSession(localMs: localMs)
-                    let absoluteMs = TimestampConverter.shared.absoluteMsFromAnchor(localMs: localMs)
+                    TimestampConverter.shared.anchorSession(localMs: localMs, mediaType: .audio)
+                    let absoluteMs = TimestampConverter.shared.absoluteMsFromAnchor(localMs: localMs, mediaType: .audio)
                     let sampleTime = AVAudioFramePosition(
                         Double(absoluteMs) / 1000.0 * when.sampleRate
                     )

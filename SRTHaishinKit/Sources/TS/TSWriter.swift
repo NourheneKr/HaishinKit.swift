@@ -238,11 +238,9 @@ final class TSWriter {
         let duration: Double = timestamp.seconds - clockTimeStamp.seconds
         if pcrPID == PID && 0.02 <= duration {
             if clockContext != nil {
-                // PCR absolu ancré sur Unix epoch — cohérent avec les PTS absolus
                 let absMs = TimestampConverter.shared.absoluteTimeMs(fromLocalTime: timestamp)
-                let pts33Mask: UInt64 = (1 << 33) - 1  // 8_589_934_591
-                PCR = UInt64(absMs * 90) & pts33Mask
-
+                let pts90k = TimestampConverter.shared.toPTS90k(absoluteMs: absMs)
+                PCR = UInt64(bitPattern: pts90k)
             } else {
                 PCR = UInt64((timestamp.seconds - (PID == Self.defaultVideoPID ? videoTimeStamp : audioTimeStamp).seconds) * TSTimestamp.resolution)
             }
