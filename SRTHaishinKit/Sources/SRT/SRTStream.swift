@@ -28,6 +28,7 @@ public actor SRTStream {
     nonisolated(unsafe) private var mixerVideoContinuation: AsyncStream<CMSampleBuffer>.Continuation?
     
     private var isCalibrated = false
+    private var publishStartTime: CMTime = .invalid
 
     public var performanceData: SRTPerformanceData? {
         get async {
@@ -76,6 +77,7 @@ public actor SRTStream {
         stopMixerInputConsumers()
         startMixerInputConsumers()
         outgoing.startRunning()
+        publishStartTime = CMClockGetTime(CMClockGetHostTimeClock())
         writer.clockContext = StreamClockContext()
         TimestampConverter.shared.resetSession()
         writer.clear()
@@ -158,6 +160,7 @@ public actor SRTStream {
         writer.clear()
         writer.clockContext = nil
         isCalibrated = false
+        publishStartTime = .invalid
         TimestampConverter.shared.resetSession()
         reader.clear()
         outgoing.stopRunning()
@@ -233,6 +236,9 @@ extension SRTStream: _Stream {
                 outgoing.append(sampleBuffer)
                 outputs.forEach { $0.stream(self, didOutput: sampleBuffer) }
             } else {
+                if sampleBuffer.presentationTimeStamp.isNumeric && publishStartTime.isNumeric {
+                    guard sampleBuffer.presentationTimeStamp.seconds >= publishStartTime.seconds else { return }
+                }
                 writer.videoFormat = sampleBuffer.formatDescription
                 writer.append(sampleBuffer)
             }
@@ -251,6 +257,10 @@ extension SRTStream: _Stream {
             outgoing.append(audioBuffer, when: when)
             outputs.forEach { $0.stream(self, didOutput: audioBuffer, when: when) }
         case let audioBuffer as AVAudioCompressedBuffer:
+            let frameTime = when.makeTime()
+            if frameTime.isNumeric && publishStartTime.isNumeric {
+                guard frameTime.seconds >= publishStartTime.seconds else { return }
+            }
             writer.audioFormat = audioBuffer.format
             writer.append(audioBuffer, when: when)
         default:
