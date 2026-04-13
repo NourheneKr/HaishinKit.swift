@@ -77,7 +77,7 @@ public actor SRTStream {
         startMixerInputConsumers()
         outgoing.startRunning()
         writer.clockContext = StreamClockContext()
-
+        TimestampConverter.shared.resetSession()
 
         let wall = Int64(Date().timeIntervalSince1970 * 1000)
         let absolute = TimestampConverter.shared.absoluteTimeMs()
